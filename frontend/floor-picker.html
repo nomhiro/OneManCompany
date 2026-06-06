@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>地板方案 · Floor Studio</title>
+<title>床デザイン案 · Floor Studio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
@@ -378,16 +378,16 @@
 
 <header>
   <div>
-    <div class="h-title"><span class="h-sub">Floor Studio</span>地板方案选择</div>
+    <div class="h-title"><span class="h-sub">Floor Studio</span>床デザイン案の選択</div>
     <p class="h-note">
-      全部方案均为原木色系，无冷色调，无多区分色<br>
-      选择一种色调偏好，整个办公室统一使用
+      全案とも原木カラー系。寒色なし、エリア別の色分けなし<br>
+      色調の好みを1つ選ぶと、オフィス全体に統一適用されます
     </p>
   </div>
   <div class="h-right">
-    素材来源 Room Builder 32×32<br>
+    素材出典 Room Builder 32×32<br>
     Modern Interiors v2 · LimeZu<br>
-    行政区色调独立说明
+    役員エリアの色調についての補足
   </div>
 </header>
 
@@ -396,17 +396,17 @@
 </main>
 
 <div class="detail-section" id="detail">
-  <div class="detail-title">TILE REFERENCE — 实际素材坐标</div>
+  <div class="detail-title">TILE REFERENCE — 実素材の座標</div>
   <div class="tile-row" id="detail-tiles"></div>
 </div>
 
 <div class="action-bar">
   <div>
-    <div class="sel-info-label">当前选择</div>
-    <div class="sel-info-name empty" id="sel-name">尚未选择</div>
+    <div class="sel-info-label">現在の選択</div>
+    <div class="sel-info-name empty" id="sel-name">未選択</div>
   </div>
-  <span class="hint">选好后直接告诉 Claude 方案编号</span>
-  <button class="confirm-btn" id="confirm-btn">告诉我你的选择 →</button>
+  <span class="hint">選んだら案番号を Claude に伝えてください</span>
+  <button class="confirm-btn" id="confirm-btn">選択を伝える →</button>
 </div>
 
 <script>
@@ -432,61 +432,61 @@ const sheetReady = new Promise(res => {
 const SCHEMES = [
   {
     id: 'A',
-    nameZh: '自然柚木',
+    nameZh: 'ナチュラル・チーク',
     nameEn: 'Natural Cedar',
-    desc: '全场统一暖棕柚木色，质感天然，不分区不显花，最简方案',
-    tags: [{ t: '暖棕', cls: 'warm' }, { t: '全场统一', cls: 'warm' }, { t: '最简', cls: 'warm' }],
+    desc: '全体を暖かい茶系チークで統一。自然な質感でエリア分けせず、最もシンプルな案',
+    tags: [{ t: '暖茶', cls: 'warm' }, { t: '全体統一', cls: 'warm' }, { t: '最シンプル', cls: 'warm' }],
     dept:  { r: 10, c: 0,  c1: '#5e3d1e', c2: '#4c2e12' },
     exec:  { r: 10, c: 0,  c1: '#3e2610', c2: '#301808' },  // same tile, darker fallback
     div:   { c1: '#285016', c2: '#1e3c10' },
     tiles: [
-      { label: '主区', r: 10, c: 0, hint: '暖棕原木' },
+      { label: 'メイン', r: 10, c: 0, hint: '暖茶系の原木' },
     ],
-    note: '行政区使用相同素材，深一档色调',
+    note: '役員エリアは同素材で一段濃い色調',
   },
   {
     id: 'B',
-    nameZh: '蜂蜜橡木',
+    nameZh: 'ハニーオーク',
     nameEn: 'Honey Oak',
-    desc: '全场金黄橡木，饱满温暖，与行政区浑然一体，视觉统一感最强',
-    tags: [{ t: '金黄', cls: 'gold' }, { t: '全场统一', cls: 'gold' }, { t: '明亮', cls: 'gold' }],
+    desc: '全体を黄金のオーク材で。豊かで温かく、役員エリアと一体化し統一感が最も強い',
+    tags: [{ t: '黄金', cls: 'gold' }, { t: '全体統一', cls: 'gold' }, { t: '明るい', cls: 'gold' }],
     dept:  { r: 10, c: 7,  c1: '#6e4c22', c2: '#5a3c14' },
     exec:  { r: 10, c: 7,  c1: '#5a3c14', c2: '#4a2e0e' },
     div:   { c1: '#285016', c2: '#1e3c10' },
     tiles: [
-      { label: '全场', r: 10, c: 7, hint: '金黄橡木' },
+      { label: '全体', r: 10, c: 7, hint: '黄金オーク' },
     ],
-    note: '行政区使用相同素材，深一档色调',
+    note: '役員エリアは同素材で一段濃い色調',
   },
   {
     id: 'C',
-    nameZh: '双调雅木',
+    nameZh: 'ツートーン・ウッド',
     nameEn: 'Cedar & Gold',
-    desc: '普通区暖棕柚木，行政区金橡收口，层次微妙，是默认最接近方案',
-    tags: [{ t: '双色调', cls: 'warm' }, { t: '行政区区分', cls: 'gold' }],
+    desc: '一般エリアは暖茶チーク、役員エリアは黄金オークで締める。階調が微妙でデフォルトに最も近い案',
+    tags: [{ t: 'ツートーン', cls: 'warm' }, { t: '役員エリア区分', cls: 'gold' }],
     dept:  { r: 10, c: 0,  c1: '#5e3d1e', c2: '#4c2e12' },
     exec:  { r: 10, c: 7,  c1: '#7a5228', c2: '#6a4018' },
     div:   { c1: '#285016', c2: '#1e3c10' },
     tiles: [
-      { label: '部门区', r: 10, c: 0, hint: '暖棕柚木' },
-      { label: '行政区', r: 10, c: 7, hint: '金橡木' },
+      { label: '部門エリア', r: 10, c: 0, hint: '暖茶チーク' },
+      { label: '役員エリア', r: 10, c: 7, hint: '黄金オーク' },
     ],
-    note: '两种素材都已验证',
+    note: '両素材とも検証済み',
   },
   {
     id: 'D',
-    nameZh: '深焙胡桃',
+    nameZh: 'ダークウォルナット',
     nameEn: 'Dark Walnut',
-    desc: '深浓胡桃木色，沉稳内敛，行政区金褐收口，层次厚重',
-    tags: [{ t: '深棕', cls: 'dark' }, { t: '厚重感', cls: 'dark' }, { t: '实验性', cls: 'new' }],
+    desc: '濃いウォルナット色で落ち着いた印象。役員エリアは金褐色で締め、重厚な階調',
+    tags: [{ t: '濃茶', cls: 'dark' }, { t: '重厚感', cls: 'dark' }, { t: '実験的', cls: 'new' }],
     dept:  { r: 10, c: 11, c1: '#3c2210', c2: '#2c1808' },   // guessed coord
     exec:  { r: 10, c: 7,  c1: '#6a4818', c2: '#5a3810' },
     div:   { c1: '#1e3a10', c2: '#16300a' },
     tiles: [
-      { label: '部门区', r: 10, c: 11, hint: '深胡桃 (坐标推测)' },
-      { label: '行政区', r: 10, c: 7,  hint: '金橡木' },
+      { label: '部門エリア', r: 10, c: 11, hint: '濃ウォルナット(座標は推定)' },
+      { label: '役員エリア', r: 10, c: 7,  hint: '黄金オーク' },
     ],
-    note: '部门区坐标为推测，素材加载后可见实际效果',
+    note: '部門エリアの座標は推定。素材読み込み後に実際の見え方を確認可',
   },
 ];
 
@@ -695,7 +695,7 @@ function renderDetail(scheme) {
     tc.style.width = '96px'; tc.style.height = '96px';
     const ctx = tc.getContext('2d');
     ctx.imageSmoothingEnabled = false;
-    const fb = t.label.includes('行政') ? scheme.exec.c1 : scheme.dept.c1;
+    const fb = t.label.includes('役員') ? scheme.exec.c1 : scheme.dept.c1;
     ctx.fillStyle = fb;
     ctx.fillRect(0, 0, 96, 96);
     if (roomImg) ctx.drawImage(roomImg, t.c * 32, t.r * 32, 32, 32, 0, 0, 96, 96);
@@ -738,7 +738,7 @@ sheetReady.then(() => {
 document.getElementById('confirm-btn').addEventListener('click', () => {
   if (!selectedScheme) return;
   const s = selectedScheme;
-  alert(`你选择了：[${s.id}] ${s.nameZh}\n\n请告诉 Claude：选 ${s.id}`);
+  alert(`選択しました:[${s.id}] ${s.nameZh}\n\nClaude に伝えてください:選 ${s.id}`);
 });
 </script>
 </body>
