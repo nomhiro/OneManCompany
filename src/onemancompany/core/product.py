@@ -706,10 +706,10 @@ def is_blocked(slug: str, issue_id: str) -> bool:
 # ---------------------------------------------------------------------------
 
 _DEFAULT_REVIEW_ITEMS = [
-    {"key": "update_kr", "label": "更新 KR 进度", "checked": False},
-    {"key": "review_issues", "label": "Review open issues", "checked": False},
-    {"key": "assign_backlog", "label": "安排 backlog 优先级", "checked": False},
-    {"key": "create_issues", "label": "创建新 issues", "checked": False},
+    {"key": "update_kr", "label": "KR の進捗を更新", "checked": False},
+    {"key": "review_issues", "label": "オープンな issue をレビュー", "checked": False},
+    {"key": "assign_backlog", "label": "バックログの優先順位を整理", "checked": False},
+    {"key": "create_issues", "label": "新しい issue を作成", "checked": False},
 ]
 
 
