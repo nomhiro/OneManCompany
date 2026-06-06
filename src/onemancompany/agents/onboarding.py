@@ -123,8 +123,8 @@ def _pick_nickname(char_count: int, existing: set[str]) -> str:
     pool = [n for n in _load_nickname_pool() if len(n) == char_count and n not in existing]
     if pool:
         return random.choice(pool)
-    # Exhausted pool — generate from random wuxia chars
-    wuxia_parts = "风云雷电霜雪星月剑刀枪棍龙虎鹤凤松竹梅兰"
+    # Exhausted pool — generate from common Japanese given-name kanji
+    wuxia_parts = "陽翔大和悠真太蒼空結愛菜月輝海斗希颯健直樹拓涼智央彩桜羽莉葵心春紗千和隆浩達雄圭亮駿優麻衣"
     for _ in range(50):
         candidate = "".join(random.choices(wuxia_parts, k=char_count))
         if candidate not in existing:
