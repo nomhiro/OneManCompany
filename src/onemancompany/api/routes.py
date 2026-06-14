@@ -7449,7 +7449,7 @@ async def api_start_product_planning(slug: str) -> dict:
     # so the agent posts an opening message and can begin creating KRs/issues.
     # Use SYSTEM_SENDER so the UI doesn't render this as the CEO speaking — the
     # prompt builder uses `role` only as a label, so EA still gets a coherent prompt.
-    kickoff_text = f"开始为产品「{product['name']}」做规划。请先帮我梳理目标和关键结果。"
+    kickoff_text = f"プロダクト「{product['name']}」の企画を開始します。まず目標(ゴール)と主要な成果指標(KR)を整理してください。"
     try:
         kickoff_msg = await conversation_service.send_message(
             conv.id, sender=SYSTEM_SENDER, role="System", text=kickoff_text,
