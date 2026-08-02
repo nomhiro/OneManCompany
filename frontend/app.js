@@ -288,10 +288,12 @@ class AppController {
           text: p.text || p.message,
           source: p.source_employee || 'system',
         });
-      // Route to terminal — 1-on-1 or EA chat path
+      // Route to terminal — 1-on-1, EA chat, or product planning path
       } else if (this._currentConvId === p.conv_id && this._ceoTerm && (this._currentConvType === 'oneonone' || this._currentConvType === 'ea_chat' || this._currentConvType === 'product')) {
         if (p.sender !== 'ceo' && p.text != null) {
-          const source = this._currentConvType === 'ea_chat'
+          // Product planning conversations are with the EA — label them
+          // the same as ea_chat. 1-on-1s show the employee's nickname.
+          const source = (this._currentConvType === 'ea_chat' || this._currentConvType === 'product')
             ? '玲珑阁 (EA)'
             : this._resolveEmployeeNickname(p.employee_id || this._currentConvEmployeeId || '');
           this._ceoTerm.appendMessage({
@@ -569,6 +571,38 @@ class AppController {
         return null;  // don't spam the activity log
       },
       'activity':            (p) => ({ text: p.message || '', cls: 'system', agent: 'SYSTEM' }),
+      'acp_update': (p) => {
+        const { kind, employee_id, data } = p;
+        switch (kind) {
+          case 'message':
+            console.debug('[ACP] message from', employee_id, data?.content?.substring?.(0, 100));
+            break;
+          case 'thought':
+            console.debug('[ACP] thought from', employee_id);
+            break;
+          case 'tool_call_start':
+            console.debug('[ACP] tool call:', data?.name, 'from', employee_id);
+            break;
+          case 'tool_call_progress':
+            console.debug('[ACP] tool progress from', employee_id);
+            break;
+          case 'plan':
+            console.debug('[ACP] plan update from', employee_id, data?.entries?.length, 'steps');
+            break;
+          case 'usage':
+            console.debug('[ACP] usage from', employee_id, data);
+            break;
+          case 'commands':
+            console.debug('[ACP] commands from', employee_id);
+            break;
+          case 'mode':
+            console.debug('[ACP] mode change:', data?.mode_id, 'for', employee_id);
+            break;
+          default:
+            console.debug('[ACP] unknown kind:', kind, 'from', employee_id);
+        }
+        return null; // no activity log entry
+      },
     };
 
     const formatter = formatters[msg.type];
@@ -2367,6 +2401,8 @@ class AppController {
       }
 
       // 1-on-1 / product-planning conversation mode: send via conversation API
+      // Product planning shares the conversation transport; without this
+      // a CEO reply falls through to the task-creation fallback below.
       if ((this._currentConvType === 'oneonone' || this._currentConvType === 'product') && this._currentConvId) {
         try {
           const uploaded = await this._uploadCeoPendingFiles();
@@ -2709,10 +2745,18 @@ class AppController {
           this._ceoTerm?.appendMessage({ role: 'system', text: '/clear only works in EA chat.', source: 'system' });
           return;
         }
-        // Forget old conversation and create a new one
-        this._eaChatConvId = null;
-        localStorage.removeItem('ea-chat-conv-id');
-        await this._ensureEaChatConversation();
+        // Clear history on disk (SSOT) for the current conversation, keeping the
+        // same conv_id so a page refresh does not resurrect the old messages.
+        if (!this._eaChatConvId) {
+          await this._ensureEaChatConversation();
+        }
+        if (this._eaChatConvId) {
+          try {
+            await fetch(`/api/conversation/${this._eaChatConvId}/clear`, { method: 'POST' });
+          } catch (e) {
+            console.error('Failed to clear EA chat history:', e);
+          }
+        }
         this._ceoTerm?.showChat(this._EA_CHAT, []);
       }},
     ];
@@ -9976,6 +10020,10 @@ class AppController {
           <button class="pixel-btn" id="followup-btn" style="font-size:6px;padding:4px 10px;">+ Follow-up Task</button>
           <div id="followup-input-area" class="hidden" style="margin-top:6px;">
             <textarea id="followup-instructions" class="followup-textarea" placeholder="Enter follow-up instructions..." rows="3"></textarea>
+            <label style="display:flex;align-items:center;gap:4px;margin-top:4px;font-size:6px;color:#ccc;cursor:pointer;">
+              <input type="checkbox" id="followup-abandon" style="width:10px;height:10px;">
+              Abandon current task &amp; redirect (stop the running loop first)
+            </label>
             <div style="margin-top:4px;display:flex;gap:4px;">
               <button class="pixel-btn" id="followup-submit" style="font-size:6px;padding:3px 8px;">Send</button>
               <button class="pixel-btn secondary" id="followup-cancel" style="font-size:6px;padding:3px 8px;">Cancel</button>
@@ -10171,7 +10219,8 @@ class AppController {
             const textarea = document.getElementById('followup-instructions');
             const text = textarea?.value?.trim();
             if (!text) return;
-            this._submitFollowup(iterationId, text);
+            const abandonCurrent = document.getElementById('followup-abandon')?.checked || false;
+            this._submitFollowup(iterationId, text, abandonCurrent);
           });
         }
       })
@@ -10207,7 +10256,7 @@ class AppController {
       });
   }
 
-  _submitFollowup(projectId, instructions) {
+  _submitFollowup(projectId, instructions, abandonCurrent = false) {
     if (!this._checkCooldown('submitFollowup')) return;
     const submitBtn = document.getElementById('followup-submit');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '⏳ Submitting...'; }
@@ -10215,7 +10264,7 @@ class AppController {
     fetch(`/api/task/${encodeURIComponent(projectId)}/followup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ instructions }),
+      body: JSON.stringify({ instructions, abandon_current: abandonCurrent }),
     })
       .then(r => r.json())
       .then(data => {
@@ -10223,7 +10272,9 @@ class AppController {
           this.logEntry('CEO', `Follow-up task failed: ${data.error}`, 'error');
           if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send'; }
         } else {
-          this.logEntry('CEO', `Follow-up instructions added, tasks routed to EA`, 'ceo');
+          this.logEntry('CEO', abandonCurrent
+            ? `Abandoned current task, redirected — tasks routed to EA`
+            : `Follow-up instructions added, tasks routed to EA`, 'ceo');
           const modal = document.getElementById('project-modal');
           if (modal) modal.classList.add('hidden');
         }

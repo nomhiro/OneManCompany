@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,6 +12,64 @@ from onemancompany.core.vessel import LaunchResult, TaskContext
 
 
 class TestSubprocessExecutor:
+    def test_init_migrates_managed_legacy_general_assistant_launcher(self, tmp_path):
+        """Existing built-in launchers are upgraded without a re-hire."""
+        from onemancompany.core.subprocess_executor import SubprocessExecutor
+
+        launch_sh = tmp_path / "launch.sh"
+        launch_sh.write_text(
+            "#!/bin/bash\n"
+            "# General AI Assistant — Ralph-style agent loop\n"
+            'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'
+            'MAX_ITERATIONS="${1:-10}"\n'
+            '# Resolve task: env var > first arg > interactive\n'
+            'if [ -z "$TASK" ]; then\n'
+            '  if [ -f "$SCRIPT_DIR/task.txt" ]; then\n'
+            '    TASK="$(cat "$SCRIPT_DIR/task.txt")"\n'
+            "  else\n"
+            '    echo "No task provided. Set TASK env var or create task.txt"\n'
+            "    exit 1\n"
+            "  fi\n"
+            "fi\n"
+            'OUTPUT=$(echo "$PROMPT" | python "$SCRIPT_DIR/run.py")\n'
+        )
+
+        SubprocessExecutor(employee_id="00010", script_path=str(launch_sh))
+
+        migrated = launch_sh.read_text()
+        assert "OMC_TASK_DESCRIPTION_FILE" in migrated
+        assert "OMC_MAX_ITERATIONS" in migrated
+        assert "OMC_PYTHON_EXECUTABLE" in migrated
+        assert 'MAX_ITERATIONS="${1:-10}"' not in migrated
+        assert '| python "$SCRIPT_DIR/run.py"' not in migrated
+
+        SubprocessExecutor(employee_id="00010", script_path=str(launch_sh))
+        assert launch_sh.read_text() == migrated
+
+    def test_init_preserves_custom_launcher(self, tmp_path):
+        """Migration must never rewrite an unrecognized user launcher."""
+        from onemancompany.core.subprocess_executor import SubprocessExecutor
+
+        launch_sh = tmp_path / "launch.sh"
+        custom_content = "#!/bin/bash\necho custom launcher\n"
+        launch_sh.write_text(custom_content)
+
+        SubprocessExecutor(employee_id="00010", script_path=str(launch_sh))
+
+        assert launch_sh.read_text() == custom_content
+
+    def test_init_preserves_non_utf8_launcher(self, tmp_path):
+        """Binary or non-UTF-8 launchers are ignored by the managed migration."""
+        from onemancompany.core.subprocess_executor import SubprocessExecutor
+
+        launch_sh = tmp_path / "launch.sh"
+        custom_content = b"\xca\xfe\xba\xbe"
+        launch_sh.write_bytes(custom_content)
+
+        SubprocessExecutor(employee_id="00010", script_path=str(launch_sh))
+
+        assert launch_sh.read_bytes() == custom_content
+
     @pytest.mark.asyncio
     async def test_execute_happy_path(self):
         """Execute runs launch.sh and captures JSON output."""
@@ -126,6 +185,7 @@ class TestSubprocessExecutor:
             await exe.execute("hello from CEO", ctx)
 
         assert "OMC_TASK_DESCRIPTION_FILE" in captured_env
+        assert captured_env["OMC_PYTHON_EXECUTABLE"] == sys.executable
         # Temp file should be cleaned up after execution
         assert not os.path.exists(captured_env["OMC_TASK_DESCRIPTION_FILE"])
 
