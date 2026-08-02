@@ -60,12 +60,17 @@ AUTH_CHOICE_GROUPS: list[AuthChoiceGroup] = [
         AuthChoiceOption("openrouter-api-key", "API Key", provider="openrouter", auth_method="api_key"),
     ]),
     AuthChoiceGroup("google", "Google Gemini", "OAuth + API key", [
-        AuthChoiceOption("google-gemini-oauth", "Gemini CLI OAuth", provider="google", auth_method="oauth", available=False),
-        AuthChoiceOption("google-gemini-api-key", "API Key", provider="google", auth_method="api_key"),
+        # Values must follow the {group_id}-{method} convention (#405): the Settings
+        # UI saves a key by POSTing choice=f"{group_id}-api-key".
+        AuthChoiceOption("google-oauth", "Gemini CLI OAuth", provider="google", auth_method="oauth", available=False),
+        AuthChoiceOption("google-api-key", "API Key", provider="google", auth_method="api_key"),
     ]),
     AuthChoiceGroup("minimax", "MiniMax", "OAuth + API key", [
         AuthChoiceOption("minimax-oauth", "OAuth", provider="minimax", auth_method="oauth", available=False),
         AuthChoiceOption("minimax-api-key", "API Key", provider="minimax", auth_method="api_key"),
+    ]),
+    AuthChoiceGroup("azure", "Azure AI Foundry", "OpenAI-compatible v1 endpoint + API key", [
+        AuthChoiceOption("azure-api-key", "API Key", provider="azure", auth_method="api_key"),
     ]),
     AuthChoiceGroup("custom", "Custom Provider", "Any OpenAI/Anthropic compatible endpoint", [
         AuthChoiceOption("custom-api-key", "Custom API Key", provider="custom", auth_method="api_key"),
@@ -83,7 +88,14 @@ def resolve_auth_choice(choice_value: str) -> AuthChoiceOption | None:
 
 
 def validate_registry_consistency() -> list[str]:
-    """Check that all AUTH_CHOICE_GROUPS group_ids exist in PROVIDER_REGISTRY."""
+    """Check AUTH_CHOICE_GROUPS invariants.
+
+    1. Every group_id must exist in PROVIDER_REGISTRY.
+    2. Every group with an api_key option must expose it under the value
+       f"{group_id}-api-key" — the Settings UI constructs that value client-side
+       (frontend _saveProviderKey), so a divergence makes Save fail with
+       "Unknown auth choice" (#405). Catch it at startup instead of at runtime.
+    """
     from onemancompany.core.config import PROVIDER_REGISTRY
     warnings = []
     for group in AUTH_CHOICE_GROUPS:
@@ -91,6 +103,13 @@ def validate_registry_consistency() -> list[str]:
             warnings.append(
                 f"AUTH_CHOICE_GROUPS group_id '{group.group_id}' "
                 f"not found in PROVIDER_REGISTRY"
+            )
+        api_key_values = {c.value for c in group.choices if c.auth_method == "api_key"}
+        expected = f"{group.group_id}-api-key"
+        if api_key_values and expected not in api_key_values:
+            warnings.append(
+                f"AUTH_CHOICE_GROUPS group '{group.group_id}' has an api_key option "
+                f"but none with value '{expected}' — the Settings UI cannot save it"
             )
     return warnings
 

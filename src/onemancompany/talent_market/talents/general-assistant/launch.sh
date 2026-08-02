@@ -3,14 +3,31 @@
 # Iteratively runs the standalone agent, checking for task completion each round.
 #
 # Usage:
+#   ./launch.sh <employee_dir>  # SubprocessExecutor mode
 #   ./launch.sh [max_iterations]
 #   ./launch.sh 20              # run up to 20 iterations
-#   TASK="Research this project" ./launch.sh   # pass task via env var
+#   OMC_TASK_DESCRIPTION_FILE=/tmp/task.txt ./launch.sh
+#   OMC_TASK_DESCRIPTION="Research this project" ./launch.sh
+#   TASK="Research this project" ./launch.sh   # legacy fallback
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MAX_ITERATIONS="${1:-10}"
+if [ -n "${OMC_PYTHON_EXECUTABLE:-}" ]; then
+  PYTHON_EXECUTABLE="$OMC_PYTHON_EXECUTABLE"
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON_EXECUTABLE="$(command -v python3)"
+elif command -v python >/dev/null 2>&1; then
+  PYTHON_EXECUTABLE="$(command -v python)"
+else
+  echo "No Python interpreter found. Set OMC_PYTHON_EXECUTABLE." >&2
+  exit 1
+fi
+if [ -n "${OMC_EMPLOYEE_ID:-}" ]; then
+  MAX_ITERATIONS="${OMC_MAX_ITERATIONS:-10}"
+else
+  MAX_ITERATIONS="${OMC_MAX_ITERATIONS:-${1:-10}}"
+fi
 PROGRESS_FILE="$SCRIPT_DIR/progress.log"
 
 # Initialize progress log
@@ -20,14 +37,18 @@ if [ ! -f "$PROGRESS_FILE" ]; then
   echo "---" >> "$PROGRESS_FILE"
 fi
 
-# Resolve task: env var > first arg > interactive
-if [ -z "$TASK" ]; then
-  if [ -f "$SCRIPT_DIR/task.txt" ]; then
-    TASK="$(cat "$SCRIPT_DIR/task.txt")"
-  else
-    echo "No task provided. Set TASK env var or create task.txt"
-    exit 1
-  fi
+# Resolve task using the SubprocessExecutor protocol, then legacy fallbacks.
+if [ -n "${OMC_TASK_DESCRIPTION_FILE:-}" ] && [ -f "$OMC_TASK_DESCRIPTION_FILE" ]; then
+  TASK="$(cat "$OMC_TASK_DESCRIPTION_FILE")"
+elif [ -n "${OMC_TASK_DESCRIPTION:-}" ]; then
+  TASK="$OMC_TASK_DESCRIPTION"
+elif [ -n "${TASK:-}" ]; then
+  :
+elif [ -f "$SCRIPT_DIR/task.txt" ]; then
+  TASK="$(cat "$SCRIPT_DIR/task.txt")"
+else
+  echo "No task provided. Set OMC_TASK_DESCRIPTION_FILE, OMC_TASK_DESCRIPTION, TASK, or create task.txt"
+  exit 1
 fi
 
 echo "Starting agent loop — Max iterations: $MAX_ITERATIONS"
@@ -55,7 +76,7 @@ When all tasks are complete, output <done>COMPLETE</done> as the last line."
   fi
 
   # Run the standalone agent
-  OUTPUT=$(echo "$PROMPT" | python "$SCRIPT_DIR/run.py" 2>&1 | tee /dev/stderr) || true
+  OUTPUT=$(echo "$PROMPT" | "$PYTHON_EXECUTABLE" "$SCRIPT_DIR/run.py" 2>&1 | tee /dev/stderr) || true
 
   # Log progress
   echo "" >> "$PROGRESS_FILE"

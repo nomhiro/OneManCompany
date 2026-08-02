@@ -323,8 +323,8 @@ async def apply_auth(body: dict) -> dict:
         api_key=body.get("api_key", ""),
         model=body.get("model", ""),
         employee_id=body.get("employee_id", ""),
-        base_url=body.get("base_url", ""),
-        chat_class=body.get("chat_class", ""),
+        base_url=body.get("base_url"),
+        chat_class=body.get("chat_class"),
     )
 
 
@@ -670,6 +670,13 @@ async def task_followup(project_id: str, body: dict) -> dict:
     if not instructions:
         return {"error": "Empty instructions"}
 
+    # CEO "abandon / redirect" intent: when true, cancel the currently-running
+    # task loop for this project before dispatching the new instructions.
+    # Without this, a follow-up only *queues* behind the running task (e.g. a
+    # clone-retry loop), so the old task keeps running and the new direction
+    # never takes effect until the old one finishes on its own.
+    abandon_current = bool(body.get("abandon_current") or body.get("redirect"))
+
     # Load project from filesystem (persistent, not in-memory)
     from pathlib import Path
     from onemancompany.core.project_archive import _resolve_and_load
@@ -683,6 +690,19 @@ async def task_followup(project_id: str, body: dict) -> dict:
         raise HTTPException(status_code=404, detail="Project not found")
 
     original_task = doc.get("task", "")
+
+    # Abandon/redirect: cancel the running task loop for this project up front so
+    # the new instructions dispatch immediately instead of queuing behind it.
+    # abort_project cancels the running asyncio.Task (CancelledError → CANCELLED);
+    # _run_task's finally then reschedules the employee, picking up the new node.
+    if abandon_current:
+        from onemancompany.core.agent_loop import employee_manager as _abort_mgr
+        cancelled_count = _abort_mgr.abort_project(project_id)
+        logger.info(
+            "[FOLLOWUP] abandon_current: cancelled {} task(s) for project {} before redirect",
+            cancelled_count, project_id,
+        )
+        append_action(project_id, "ceo", "abandon current task", instructions[:200])
 
     # Load task tree and collect all previous work results
     tree_path = Path(pdir) / TASK_TREE_FILENAME
@@ -719,21 +739,38 @@ async def task_followup(project_id: str, body: dict) -> dict:
                          project_id)
 
     # Build follow-up task for assignee
-    context_parts = [
-        f"CEO has added follow-up instructions to a completed task:\n",
-        f"Original task: {original_task}\n",
-    ]
-    if work_summary_lines:
-        context_parts.append(f"Previous work results:\n" + "\n".join(work_summary_lines) + "\n")
-    context_parts.append(f"CEO follow-up instructions: {instructions}\n")
     attach_info = _build_attachment_prompt(body.get("attachments") or [])
-    if attach_info:
-        context_parts.append(attach_info.lstrip("\n") + "\n")
-    context_parts.append(
-        f"\nBuild on the existing work — do NOT redo completed subtasks unless the CEO explicitly asks."
-        f" Use dispatch_child() if subtasks are needed.\n\n"
-        f"[Project ID: {project_id}] [Project workspace: {pdir}]"
-    )
+    if abandon_current:
+        context_parts = [
+            "CEO has ABANDONED the previous task and given a new direction.\n",
+            f"Previous task (now cancelled): {original_task}\n",
+        ]
+        if work_summary_lines:
+            context_parts.append("Work done before abandonment (reference only):\n" + "\n".join(work_summary_lines) + "\n")
+        context_parts.append(f"CEO new instructions: {instructions}\n")
+        if attach_info:
+            context_parts.append(attach_info.lstrip("\n") + "\n")
+        context_parts.append(
+            "\nStop the previous approach entirely. Do NOT resume or retry the cancelled task."
+            " Proceed with the new instructions, reusing any useful prior work."
+            " Use dispatch_child() if subtasks are needed.\n\n"
+            f"[Project ID: {project_id}] [Project workspace: {pdir}]"
+        )
+    else:
+        context_parts = [
+            f"CEO has added follow-up instructions to a completed task:\n",
+            f"Original task: {original_task}\n",
+        ]
+        if work_summary_lines:
+            context_parts.append(f"Previous work results:\n" + "\n".join(work_summary_lines) + "\n")
+        context_parts.append(f"CEO follow-up instructions: {instructions}\n")
+        if attach_info:
+            context_parts.append(attach_info.lstrip("\n") + "\n")
+        context_parts.append(
+            f"\nBuild on the existing work — do NOT redo completed subtasks unless the CEO explicitly asks."
+            f" Use dispatch_child() if subtasks are needed.\n\n"
+            f"[Project ID: {project_id}] [Project workspace: {pdir}]"
+        )
     followup_task = "\n".join(context_parts)
 
     # Append to existing tree (or create new if none exists)
@@ -1417,6 +1454,8 @@ async def get_employee_detail(employee_id: str) -> dict:
     result["api_provider"] = api_provider
     result["api_key_set"] = bool(api_key)
     result["api_key_preview"] = ("..." + api_key[-4:]) if len(api_key) >= 4 else ""
+    result["api_base_url"] = cfg.api_base_url if cfg else ""
+    result["custom_chat_class"] = cfg.custom_chat_class if cfg else ""
     result["hosting"] = cfg.hosting if cfg else HostingMode.COMPANY.value
     result["auth_method"] = cfg.auth_method if cfg else "api_key"
     # Self-hosted employees manage their own auth via Claude CLI — always considered logged in
@@ -3522,6 +3561,17 @@ async def get_avatar(employee_id: str):
 async def get_employee_projects(employee_id: str) -> list[dict]:
     """Get list of projects an employee participated in."""
     return _scan_employee_projects(employee_id)
+
+
+@router.get("/api/employees/{employee_id}/acp-endpoint")
+async def get_acp_endpoint(employee_id: str):
+    """Return the HTTP port for IDE direct connection to this employee's ACP agent."""
+    mgr = _get_employee_manager()
+    if mgr._acp_manager:
+        port = mgr._acp_manager.get_ide_endpoint(employee_id)
+        if port:
+            return {"port": port, "transport": "streamable-http"}
+    return {"error": "No ACP endpoint available", "port": None}
 
 
 @router.get("/api/employees/{employee_id}/projects/{project_id}/retrospective")
@@ -6790,14 +6840,19 @@ async def close_conversation(conv_id: str, wait_hooks: bool = False) -> dict:
 
 @router.post("/api/conversation/{conv_id}/clear")
 async def clear_conversation_history(conv_id: str) -> dict:
-    """Clear all 1-on-1 message history for the current conversation's employee."""
+    """Clear message history on disk for conversations of the same type/employee.
+
+    Supports both ``oneonone`` (1-on-1 chat) and ``ea_chat`` (CEO console EA chat).
+    Clearing writes an empty list to ``messages.yaml`` so a page refresh — which is
+    disk-sourced — does not resurrect the cleared history (磁盘即唯一真相源).
+    """
     try:
         conv = _get_conv_svc().get(conv_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    if conv.type != "oneonone":
-        raise HTTPException(status_code=400, detail="Clear history is only supported for oneonone conversations")
+    if conv.type not in ("oneonone", "ea_chat"):
+        raise HTTPException(status_code=400, detail="Clear history is only supported for oneonone and ea_chat conversations")
     if not conv.employee_id:
         raise HTTPException(status_code=400, detail="Conversation has no employee_id")
 
@@ -6825,7 +6880,7 @@ async def clear_conversation_history(conv_id: str) -> dict:
         except Exception:
             logger.warning("[conversation] skip unreadable meta when clearing history: {}", conv_dir)
             continue
-        if c.type != "oneonone" or c.employee_id != conv.employee_id:
+        if c.type != conv.type or c.employee_id != conv.employee_id:
             continue
         scanned += 1
         msg_path = conv_dir / "messages.yaml"
@@ -6833,10 +6888,11 @@ async def clear_conversation_history(conv_id: str) -> dict:
             write_text_utf(msg_path, "[]\n")
             cleared += 1
 
-    # Keep legacy 1-on-1 history endpoint consistent.
-    legacy_history_path = conversation_core.EMPLOYEES_DIR / conv.employee_id / "oneonone_history.yaml"
-    if legacy_history_path.exists():
-        write_text_utf(legacy_history_path, "[]\n")
+    # Keep legacy 1-on-1 history endpoint consistent (oneonone only).
+    if conv.type == "oneonone":
+        legacy_history_path = conversation_core.EMPLOYEES_DIR / conv.employee_id / "oneonone_history.yaml"
+        if legacy_history_path.exists():
+            write_text_utf(legacy_history_path, "[]\n")
 
     return {
         "status": "cleared",

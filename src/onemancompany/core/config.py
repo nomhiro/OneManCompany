@@ -144,6 +144,7 @@ ENV_OMC_TASK_ID = "OMC_TASK_ID"
 ENV_OMC_PROJECT_ID = "OMC_PROJECT_ID"
 ENV_OMC_PROJECT_DIR = "OMC_PROJECT_DIR"
 ENV_OMC_SERVER_URL = "OMC_SERVER_URL"
+ENV_OMC_PYTHON_EXECUTABLE = "OMC_PYTHON_EXECUTABLE"
 
 # .env variable names (used in onboarding and settings)
 ENV_KEY_ANTHROPIC = "ANTHROPIC_API_KEY"
@@ -152,6 +153,8 @@ ENV_KEY_TALENT_MARKET = "TALENT_MARKET_API_KEY"
 ENV_KEY_OPENROUTER = "OPENROUTER_API_KEY"
 ENV_KEY_DEFAULT_PROVIDER = "DEFAULT_API_PROVIDER"
 ENV_KEY_DEFAULT_MODEL = "DEFAULT_LLM_MODEL"
+ENV_KEY_DEFAULT_BASE_URL = "DEFAULT_API_BASE_URL"
+ENV_KEY_CUSTOM_CHAT_CLASS = "CUSTOM_CHAT_CLASS"
 ENV_KEY_HOST = "HOST"
 ENV_KEY_PORT = "PORT"
 ENV_KEY_SANDBOX_ENABLED = "SANDBOX_ENABLED"
@@ -491,6 +494,15 @@ PROVIDER_REGISTRY: dict[str, ProviderConfig] = {
         env_key="minimax_api_key",
         health_url="https://api.minimax.chat/v1/models",
     ),
+    "azure": ProviderConfig(
+        # Azure AI Foundry exposes an OpenAI-compatible v1 API. The resource-specific
+        # endpoint (https://<resource>.services.ai.azure.com/openai/v1/) is user-provided
+        # via DEFAULT_API_BASE_URL, and the model id is the Azure *deployment name*.
+        base_url="",
+        chat_class="openai",
+        env_key="azure_api_key",
+        health_url="",  # resource-specific; skip zero-token health check
+    ),
     "custom": ProviderConfig(
         base_url="",  # user-provided via DEFAULT_API_BASE_URL
         env_key="custom_api_key",
@@ -530,6 +542,8 @@ class EmployeeConfig(BaseModel):
     onboarding_completed: bool = False  # set True after onboarding routine
     api_provider: str = "openrouter"  # provider name from PROVIDER_REGISTRY
     api_key: str = ""  # Custom API key (used when api_provider != default)
+    api_base_url: str = ""  # Optional per-employee base URL override (primarily for custom provider)
+    custom_chat_class: str = ""  # Optional per-employee chat class override ("openai" | "anthropic")
     hosting: str = "company"  # "company" | "self" | "openclaw" — also serves as agent family selector
     auth_method: str = "api_key"  # "api_key" | "oauth" (OAuth PKCE for Anthropic)
     oauth_refresh_token: str = ""  # OAuth refresh token (long-lived)
@@ -571,6 +585,7 @@ class Settings(BaseSettings):
     together_api_key: str = ""
     google_api_key: str = ""
     minimax_api_key: str = ""
+    azure_api_key: str = ""
     custom_api_key: str = ""
 
     # Default provider & model

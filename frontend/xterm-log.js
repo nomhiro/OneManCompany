@@ -70,7 +70,10 @@ class XTermLog {
       scrollback: 10000,
       cursorBlink: false,
       cursorStyle: 'bar',
-      cursorWidth: 0,
+      // xterm.js requires cursorWidth >= 1 (0 throws "cursorWidth cannot be less
+      // than 1"). The cursor stays effectively hidden — its color matches the
+      // terminal background. (#403)
+      cursorWidth: 1,
     });
 
     if (typeof FitAddon !== 'undefined') {
@@ -221,6 +224,9 @@ class XTermLog {
     } else if (step.type === 'holding' || step.type === 'auto_holding') {
       const content = step.content || '';
       this.writeln(`${ts} ${ANSI.yellow}hold${ANSI.reset}  ${this._clip(content)}`);
+    } else if (step.type === 'heartbeat') {
+      const content = (step.content || '').replace(/\n/g, ' ');
+      this.writeln(`${ts} ${ANSI.gray}beat${ANSI.reset}  ${ANSI.dim}${this._clip(content)}${ANSI.reset}`);
     } else if (step.type === 'error') {
       const content = (step.content || '').replace(/\n/g, ' ');
       this.writeln(`${ts} ${ANSI.red}error${ANSI.reset} ${this._clip(content)}`);
