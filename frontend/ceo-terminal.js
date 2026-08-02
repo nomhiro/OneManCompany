@@ -61,7 +61,7 @@ class CeoTerminal {
       const empty = document.createElement('div');
       empty.style.color = '#71717a';
       empty.style.padding = '4px 0';
-      empty.textContent = '  No messages yet.';
+      empty.textContent = `  ${window.t('No messages yet.')}`;
       this._container.appendChild(empty);
     }
 
@@ -71,7 +71,7 @@ class CeoTerminal {
   appendMessage(msg) {
     // Remove "No messages yet" placeholder if present
     const placeholder = this._container.querySelector('div[style*="71717a"]');
-    if (placeholder && placeholder.textContent.includes('No messages yet')) {
+    if (placeholder && placeholder.textContent.includes(window.t('No messages yet.'))) {
       placeholder.remove();
     }
     this._renderMsg(msg);
@@ -222,7 +222,7 @@ class CeoTerminal {
         el.innerHTML = `<span class="ceo-msg-sender">[${this._esc(src)}]</span>`
           + `<span class="ceo-msg-text ceo-msg-collapsed">${this._esc(preview)}</span>`
           + `<span class="ceo-msg-text ceo-msg-full" style="display:none">${this._esc(full)}</span>`
-          + `<span class="ceo-msg-toggle" onclick="this.parentElement.querySelector('.ceo-msg-collapsed').style.display=this.parentElement.querySelector('.ceo-msg-collapsed').style.display==='none'?'':'none';this.parentElement.querySelector('.ceo-msg-full').style.display=this.parentElement.querySelector('.ceo-msg-full').style.display==='none'?'':'none';this.textContent=this.textContent==='▼ Show more'?'▲ Show less':'▼ Show more'">▼ Show more</span>`;
+          + `<span class="ceo-msg-toggle" onclick="this.parentElement.querySelector('.ceo-msg-collapsed').style.display=this.parentElement.querySelector('.ceo-msg-collapsed').style.display==='none'?'':'none';this.parentElement.querySelector('.ceo-msg-full').style.display=this.parentElement.querySelector('.ceo-msg-full').style.display==='none'?'':'none';this.textContent=this.textContent==='▼ '+window.t('Show more')?'▲ '+window.t('Show less'):'▼ '+window.t('Show more')">▼ ${window.t('Show more')}</span>`;
       } else {
         el.innerHTML = `<span class="ceo-msg-sender">[${this._esc(src)}]</span>`
           + `<span class="ceo-msg-text">${this._esc(text)}</span>`;

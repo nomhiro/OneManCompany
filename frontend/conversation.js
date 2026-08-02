@@ -25,8 +25,8 @@ class ChatPanel {
                 <div class="chat-panel-header">
                     <span class="chat-panel-type"></span>
                     <span class="chat-panel-employee"></span>
-                    <button class="chat-panel-clear-btn">Clear</button>
-                    <button class="chat-panel-close-btn">End</button>
+                    <button class="chat-panel-clear-btn">${window.t('Clear')}</button>
+                    <button class="chat-panel-close-btn">${window.t('End')}</button>
                 </div>
                 <div class="chat-panel-messages"></div>
                 <div class="chat-panel-typing hidden" aria-label="Agent thinking">
@@ -35,13 +35,13 @@ class ChatPanel {
                     <span class="chat-panel-typing-dot">.</span>
                 </div>
                 <div class="chat-panel-input-row">
-                    <textarea class="chat-panel-input" rows="2" placeholder="Type a message..."></textarea>
+                    <textarea class="chat-panel-input" rows="2" placeholder="${window.t('Type a message...')}"></textarea>
                     <div class="chat-panel-actions">
                         <label class="chat-panel-upload-label">
                             <input type="file" class="chat-panel-file" multiple hidden />
                             +
                         </label>
-                        <button class="chat-panel-send-btn">Send</button>
+                        <button class="chat-panel-send-btn">${window.t('Send')}</button>
                     </div>
                 </div>
             </div>
@@ -109,7 +109,7 @@ class ChatPanel {
             typeLabels[convType] || 'Chat';
         this._container.querySelector('.chat-panel-employee').textContent = employeeName;
         this._clearBtn.style.display = convType === 'oneonone' ? '' : 'none';
-        this._closeBtn.textContent = convType === 'ceo_session' ? 'Close' : 'End';
+        this._closeBtn.textContent = convType === 'ceo_session' ? window.t('Close') : window.t('End');
     }
 
     renderMessages(messages) {

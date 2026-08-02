@@ -53,7 +53,7 @@ class AppController {
     this.ws.onopen = () => {
       this.reconnectDelay = 1000;
       const statusEl = document.getElementById('connection-status');
-      statusEl.textContent = '● ONLINE';
+      statusEl.textContent = window.t('● ONLINE');
       statusEl.classList.add('online');
       // Hide reconnecting overlay
       document.getElementById('reconnecting-overlay').classList.add('hidden');
@@ -62,7 +62,7 @@ class AppController {
       if (banner) {
         banner.classList.add('hidden');
         const applyBtn = document.getElementById('code-update-apply-btn');
-        if (applyBtn) { applyBtn.textContent = 'Apply'; applyBtn.disabled = false; }
+        if (applyBtn) { applyBtn.textContent = window.t('Apply'); applyBtn.disabled = false; }
       }
       this.bootstrap();
     };
@@ -78,7 +78,7 @@ class AppController {
 
     this.ws.onclose = () => {
       const statusEl = document.getElementById('connection-status');
-      statusEl.textContent = '● OFFLINE';
+      statusEl.textContent = window.t('● OFFLINE');
       statusEl.classList.remove('online');
       // Show reconnecting overlay
       document.getElementById('reconnecting-overlay').classList.remove('hidden');
